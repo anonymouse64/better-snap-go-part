@@ -1,0 +1,48 @@
+name: my-snap-name
+version: '0.1' 
+summary: Hello-world in go using more efficient go part
+description: Example of using more efficient go part
+grade: stable
+confinement: strict
+
+parts:
+  my-better-go:
+    source: 
+      # note there's some discrepency in the name of the powerpc 64-bit arch...
+      # ubuntu calls it ppc64le, but go calls it ppc64el
+      - on ppc64le: ./ppc64el
+      - on amd64:   ./amd64
+      - on i386:    ./i386
+      - on arm64:   ./arm64
+      - on armhf:   ./armhf
+      - on s390x:   ./s390x
+    plugin: nil
+    build-packages: [curl, coreutils]
+    override-build: |
+      # check to see if the link and sha256 files exist
+      # currently if the host architecture isn't supported in the above source: grammar expression
+      # then the source is just set to "source: .", so we can check if that's the case by looking
+      # for link + sha256 files
+      if [ ! -f link ] || [ ! -f sha256 ]; then
+        # we're building on an unknown architecture
+        # TODO: try to build go natively here in case the go toolchain gets ported to another
+        # architecture before this repo gets updated
+        echo "Unsupported architecture: $(uname -m)"
+        exit 1
+      fi
+      # download the archive, failing on ssl cert problems
+      curl $(cat link) -O
+      sha256sum -c sha256 | grep OK
+
+      case $? in
+      0)
+        tar -C $SNAPCRAFT_STAGE -xf go*.tar.gz --strip-components=1;;
+      *)
+        echo "invalid sha256, failing..."
+        exit 1;;
+      esac
+  example:
+    source: .
+    plugin: go
+#    go-importpath: github.com/anonymouse64/new-go-part
+    after: [my-better-go]
